@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <!-- Prevent browser zoom, pinch-zoom, and address-bar resize on mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+    <!-- PWA / iOS home-screen: runs full-screen without browser chrome -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#040218">
+
+    <title>Caída Venezolana</title>
+
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* Prevents iOS elastic/bounce scroll that interferes with dragging */
+            position: fixed;
+            background-color: #040218;
+        }
+
+        body {
+            line-height: 1;
+            font-family: Arial, sans-serif;
+            /* Disable all default touch gestures on the page */
+            touch-action: none;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Prevent the canvas from triggering browser pan/zoom during card drags */
+        #game-container canvas {
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            display: block;
+        }
+
+        ol, ul { list-style: none; }
+        img, video { max-width: 100%; height: auto; display: block; }
+        a { text-decoration: none; color: inherit; }
+
+        /* ── Portrait-mode overlay ─────────────────────────────────────────── */
+        /* Hidden in landscape; shown automatically in portrait by media query  */
+        #rotate-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: #040218;
+            color: #ffffff;
+            font-family: monospace;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            text-align: center;
+            padding: 24px;
+        }
+
+        #rotate-overlay .icon {
+            font-size: 64px;
+            animation: spin 2s ease-in-out infinite alternate;
+        }
+
+        #rotate-overlay .title {
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        #rotate-overlay .subtitle {
+            font-size: 15px;
+            opacity: 0.65;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(-15deg); }
+            to   { transform: rotate(15deg); }
+        }
+
+        /* Only prompt rotation on touch devices (phones/tablets), not desktop */
+        @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+            #rotate-overlay { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Shown only in portrait mode; hidden by CSS in landscape -->
+    <div id="rotate-overlay">
+        <div class="icon">📱</div>
+        <div class="title">Rota tu dispositivo</div>
+        <div class="subtitle">Caída Venezolana se juega en modo vertical</div>
+    </div>
+
+    <div id="game-container"></div>
+
+    <script src="./phaser.js"></script>
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>
