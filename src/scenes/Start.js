@@ -484,13 +484,46 @@ export class Start extends Phaser.Scene {
       }
     }
 
-    this.showTapOverlay({
-      title: "MATCH OVER!",
-      bodyLines: [...ptsLines, "", winnerText],
-      bgColor,
-      onTap: () => {
-        this.scene.start("Menu");
-      }
+    // Show overlay manually without tapCatcher so buttons can be used instead
+    const text = ["MATCH OVER!", "", ...ptsLines, "", winnerText].join("\n");
+    this.overlayText.setText(text);
+    this.overlayText.setY(this.scale.height / 2 - 50);
+    this.overlayBox.setSize(this.scale.width * 0.85, 440);
+    this.overlayBox.setFillStyle(bgColor, 0.75);
+    this.overlayBox.setVisible(true);
+    this.overlayText.setVisible(true);
+    this.setHandDraggable(false);
+
+    const cx  = this.scale.width / 2;
+    const btnY = this.scale.height / 2 + 150;
+    const btnW = 280, btnH = 52, depth = 20004;
+
+    const makeBtn = (x, label, callback) => {
+      const bg = this.add.rectangle(x, btnY, btnW, btnH, 0xffffff, 0.15)
+        .setStrokeStyle(2, 0xffffff, 0.6)
+        .setDepth(depth)
+        .setInteractive({ useHandCursor: true });
+      const txt = this.add.text(x, btnY, label, {
+        fontFamily: "monospace", fontSize: "20px", color: "#ffffff", align: "center"
+      }).setOrigin(0.5).setDepth(depth + 1);
+      bg.on("pointerover", () => bg.setFillStyle(0xffffff, 0.28));
+      bg.on("pointerout",  () => bg.setFillStyle(0xffffff, 0.15));
+      bg.on("pointerdown", () => { bg.destroy(); txt.destroy(); callback(); });
+      return { bg, txt };
+    };
+
+    let btnA, btnB;
+    btnA = makeBtn(cx - btnW / 2 - 10, "Seguir Jugando", () => {
+      btnB.bg.destroy(); btnB.txt.destroy();
+      this.overlayBox.setVisible(false);
+      this.overlayText.setVisible(false);
+      this.overlayText.setY(this.scale.height / 2);
+      this.overlayBox.setSize(this.scale.width * 0.85, 320);
+      this.scene.restart({ numPlayers: this.numPlayers, aiPlayers: [...this.aiPlayers] });
+    });
+    btnB = makeBtn(cx + btnW / 2 + 10, "Menú Principal", () => {
+      btnA.bg.destroy(); btnA.txt.destroy();
+      this.scene.start("Menu");
     });
   }
 
@@ -846,10 +879,13 @@ export class Start extends Phaser.Scene {
     const cx = this.scale.width * 0.5;
     const cy = this.scale.height * 0.47;
 
-    const w = 660;   // fits within 720-wide portrait canvas
+    const w = 660;   // visual outline width
     const h = 480;
 
-    this.playZoneRect = new Phaser.Geom.Rectangle(cx - w / 2, cy - h / 2, w, h);
+    // Drop zone is much larger than the visual outline — covers the full table area
+    const dropW = this.scale.width;
+    const dropH = this.scale.height * 0.78;  // everything above the hand cards
+    this.playZoneRect = new Phaser.Geom.Rectangle(0, 0, dropW, dropH);
 
     this.playZoneOutline = this.add.graphics();
     this.playZoneOutline.lineStyle(4, 0xffffff, 0.12);
@@ -1412,7 +1448,7 @@ export class Start extends Phaser.Scene {
 
   // ---------- TABLE ----------
   addCardToTable(card) {
-    const img = this.add.image(0, 0, card.imgKey).setScale(1.0).setDepth(100);
+    const img = this.add.image(0, 0, card.imgKey).setScale(1.2).setDepth(100);
     img.setData("card", card);
     img.setData("tableCardId", Phaser.Utils.String.UUID());
     this.tableCards.push(img);
@@ -1430,7 +1466,7 @@ export class Start extends Phaser.Scene {
     const centerY = this.scale.height * 0.47;
 
     // Spacing between cards
-    const spacingX = 105;   // horizontal spacing (fits 6 cards in 720-wide canvas)
+    const spacingX = 120;   // horizontal spacing (fits 6 cards in 720-wide canvas)
     const spacingY = 160;   // vertical spacing between rows
 
     const totalRows = Math.ceil(cards.length / maxPerRow);
@@ -1471,7 +1507,7 @@ export class Start extends Phaser.Scene {
 
       // Keep table cards at consistent depth
       cards[i].setDepth(100 + i);
-      cards[i].setScale(1.0);
+      cards[i].setScale(1.2);
     }
   }
 

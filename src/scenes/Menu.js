@@ -57,7 +57,7 @@ export class Menu extends Phaser.Scene {
     // Player count label
     const modeLabel = this.add.text(
       cx,
-      this.scale.height * 0.50,
+      this.scale.height * 0.42,
       "Selecciona el modo de juego",
       { fontFamily: "monospace", fontSize: "22px", color: "#ffffff", align: "center" }
     )
