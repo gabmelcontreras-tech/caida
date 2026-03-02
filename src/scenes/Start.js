@@ -149,10 +149,7 @@ export class Start extends Phaser.Scene {
       this.deck = this.shuffle(this.deck);
     }
 
-    // Render mesa onto table
-    mesa.forEach((c) => this.addCardToTable(c));
-
-    return matches;
+    return { mesa, matches };
   }
 
   startHand() {
@@ -219,69 +216,203 @@ export class Start extends Phaser.Scene {
 
     this.mesaDealDirection = direction;
 
-    // Deal mesa; match points awarded inside; returns matched slots
-    const matches = this.dealUniqueMesaFour(direction);
+    // Get mesa cards without rendering them yet
+    const { mesa, matches } = this.dealUniqueMesaFour(direction);
 
-    // Position cards before showing popups so we have real coordinates
-    this.layoutTable();
+    // Pre-calculate final table positions for the 4 cards
+    const cx = this.scale.width * 0.5;
+    const cy = this.scale.height * 0.47;
+    const spacingX = 120;
+    const rowWidth = (mesa.length - 1) * spacingX;
+    const startX = cx - rowWidth / 2;
+    const targets = mesa.map((_, i) => ({ x: startX + i * spacingX, y: cy }));
 
-    // Award reparto points and show popup for every matched card
-    for (const { slotIndex, pts } of matches) {
-      this.addPoints(this.dealerIndex, pts);
-      const sprite = this.tableCards[slotIndex];
-      if (sprite) this.showMatchPopup(sprite.x, sprite.y, pts);
-    }
-    if (matches.length > 0) {
-      const total = matches.reduce((s, m) => s + m.pts, 0);
-      this.logMove(`Reparto P${this.dealerIndex + 1}: +${total} pts`);
-    } else {
-      // Dealer missed every position — each other player gets +1
-      for (let p = 0; p < this.numPlayers; p++) {
-        if (p !== this.dealerIndex) {
-          this.addPoints(p, 1);
-          this.showMatchPopup(this.scale.width / 2, this.scale.height * 0.50, 1);
-        }
-      }
-      this.logMove(`Reparto: repartidor falló — rivales +1`);
-    }
+    // Deal origin: just above the table center (simulates dealing from the deck)
+    const dealOriX = cx;
+    const dealOriY = cy - 220;
 
-    // Deal 3 to each player
-    this.hands = Array.from({ length: this.numPlayers }, () => []);
-    for (let i = 0; i < 3; i++) {
-      for (let p = 0; p < this.numPlayers; p++) {
-        const c = this.deck.pop();
-        if (!c) break;
-        this.hands[p].push(c);
-      }
-    }
+    // Animate each card flying to its table slot one by one
+    const STAGGER = 420;   // ms between each card
+    const DURATION = 480;  // ms for each card's flight
 
-    console.log("startHand: Cards dealt", {
-      hands: this.hands.map(h => h.length),
-      table: this.tableCards.length,
-      deckRemaining: this.deck.length
+    mesa.forEach((card, i) => {
+      this.time.delayedCall(i * STAGGER, () => {
+        const img = this.addCardToTable(card);
+        img.setPosition(dealOriX, dealOriY);
+        img.setScale(0.6);
+        img.setAlpha(0);
+        img.setDepth(100 + i);
+
+        this.tweens.add({
+          targets: img,
+          x: targets[i].x,
+          y: targets[i].y,
+          scale: 1.2,
+          alpha: 1,
+          duration: DURATION,
+          ease: "Back.Out"
+        });
+      });
     });
 
-    this.playsThisRound = 0;
-    this.currentPlayer = 0;
+    // After all cards have landed, award reparto points and start the hand
+    const totalDelay = (mesa.length - 1) * STAGGER + DURATION + 80;
+    this.time.delayedCall(totalDelay, () => {
 
-    // Compute cantos for this new round
-    this.roundId += 1;
-    this.roundCanto    = this.hands.map(h => bestCanto(h));
-    this.cantoDeclared = Array(this.numPlayers).fill(false);
+      // Award reparto points and show popup for every matched card
+      for (const { slotIndex, pts } of matches) {
+        this.addPoints(this.dealerIndex, pts);
+        const sprite = this.tableCards[slotIndex];
+        if (sprite) this.showMatchPopup(sprite.x, sprite.y, pts);
+      }
+      if (matches.length > 0) {
+        const total = matches.reduce((s, m) => s + m.pts, 0);
+        this.logMove(`Reparto P${this.dealerIndex + 1}: +${total} pts`);
+      } else {
+        // Dealer missed every position — each other player gets +1
+        for (let p = 0; p < this.numPlayers; p++) {
+          if (p !== this.dealerIndex) {
+            this.addPoints(p, 1);
+            this.showMatchPopup(this.scale.width / 2, this.scale.height * 0.50, 1);
+          }
+        }
+        this.logMove(`Reparto: repartidor falló — rivales +1`);
+      }
 
-    // Reset canto scoring state for new round
-    this.cantoByPlayer = Array(this.numPlayers).fill(null);
-    this.cantoAwarded  = false;
+      // Deal 3 to each player
+      this.hands = Array.from({ length: this.numPlayers }, () => []);
+      for (let i = 0; i < 3; i++) {
+        for (let p = 0; p < this.numPlayers; p++) {
+          const c = this.deck.pop();
+          if (!c) break;
+          this.hands[p].push(c);
+        }
+      }
 
-    this.renderAll();
-    this.refreshCantoGate();
-    this.showOverlayIfFirstTurnOnly();
+      console.log("startHand: Cards dealt", {
+        hands: this.hands.map(h => h.length),
+        table: this.tableCards.length,
+        deckRemaining: this.deck.length
+      });
 
-    if (this.aiPlayers.has(this.currentPlayer)) {
-      this.time.delayedCall(700, () => this.aiTakeTurn());
+      this.playsThisRound = 0;
+      this.currentPlayer = 0;
+
+      // Compute cantos for this new round
+      this.roundId += 1;
+      this.roundCanto    = this.hands.map(h => bestCanto(h));
+      this.cantoDeclared = Array(this.numPlayers).fill(false);
+
+      // Reset canto scoring state for new round
+      this.cantoByPlayer = Array(this.numPlayers).fill(null);
+      this.cantoAwarded  = false;
+
+      this._animateDealCards(() => {
+        this.renderAll();
+        this.refreshCantoGate();
+        this.showOverlayIfFirstTurnOnly();
+
+        if (this.aiPlayers.has(this.currentPlayer)) {
+          this.time.delayedCall(700, () => this.aiTakeTurn());
+        }
+
+        console.log("startHand COMPLETE");
+      });
+    });
+  }
+
+  _animateDealCards(onComplete) {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const cx = W * 0.5;
+    const numCards = 3;
+
+    // Compute final positions for each player's cards.
+    // currentPlayer is always 0 at deal time, so relPos === playerIndex.
+    const playerPositions = [];
+    for (let p = 0; p < this.numPlayers; p++) {
+      playerPositions[p] = [];
+      const relPos = p;
+
+      if (relPos === 0) {
+        // Bottom row (human / current player)
+        const spacing = 140;
+        const startX = cx - ((numCards - 1) * spacing) / 2;
+        for (let i = 0; i < numCards; i++) {
+          playerPositions[p].push({ x: startX + i * spacing, y: H * 0.84, scale: 1.3 });
+        }
+      } else if (relPos === 1 && this.numPlayers === 2) {
+        // 2-player: single opponent at top
+        const spacing = 130;
+        const startX = cx - ((numCards - 1) * spacing) / 2;
+        for (let i = 0; i < numCards; i++) {
+          playerPositions[p].push({ x: startX + i * spacing, y: H * 0.10, scale: 0.75 });
+        }
+      } else if (relPos === 1) {
+        // Right column
+        const spacing = 85;
+        const startY = H * 0.47 - ((numCards - 1) * spacing) / 2;
+        for (let i = 0; i < numCards; i++) {
+          playerPositions[p].push({ x: W - 35, y: startY + i * spacing, scale: 0.42 });
+        }
+      } else if (relPos === 2 && this.numPlayers === 4) {
+        // 4-player: teammate at top
+        const spacing = 130;
+        const startX = cx - ((numCards - 1) * spacing) / 2;
+        for (let i = 0; i < numCards; i++) {
+          playerPositions[p].push({ x: startX + i * spacing, y: H * 0.10, scale: 0.55 });
+        }
+      } else {
+        // Left column (relPos 2 in 3p, relPos 3 in 4p)
+        const spacing = 85;
+        const startY = H * 0.47 - ((numCards - 1) * spacing) / 2;
+        for (let i = 0; i < numCards; i++) {
+          playerPositions[p].push({ x: 35, y: startY + i * spacing, scale: 0.42 });
+        }
+      }
     }
 
-    console.log("startHand COMPLETE");
+    // Build sequence in deal order: P0C1, P1C1, …, P0C2, P1C2, …
+    const sequence = [];
+    for (let card = 0; card < numCards; card++) {
+      for (let p = 0; p < this.numPlayers; p++) {
+        sequence.push(playerPositions[p][card]);
+      }
+    }
+
+    const dealOriX = cx;
+    const dealOriY = H * 0.47;   // center of table (where the deck sits)
+    const STAGGER  = 150;        // ms between each card
+    const DURATION = 300;        // ms per card flight
+    const tempBacks = [];
+    let completed = 0;
+
+    sequence.forEach((pos, idx) => {
+      this.time.delayedCall(idx * STAGGER, () => {
+        const back = this.add.image(dealOriX, dealOriY, "card_back")
+          .setScale(0.5)
+          .setDepth(500 + idx);
+        tempBacks.push(back);
+
+        this.tweens.add({
+          targets: back,
+          x: pos.x,
+          y: pos.y,
+          scale: pos.scale,
+          duration: DURATION,
+          ease: "Sine.Out",
+          onComplete: () => {
+            completed++;
+            if (completed === sequence.length) {
+              this.time.delayedCall(100, () => {
+                tempBacks.forEach(b => b.destroy());
+                onComplete();
+              });
+            }
+          }
+        });
+      });
+    });
   }
 
   checkEndOfHandAndContinueMatch() {
