@@ -102,6 +102,7 @@ export class Start extends Phaser.Scene {
     bg.setDisplaySize(this.scale.height, this.scale.width);
 
     this.createPlayZone();
+    this.createDeckSprite();
     this.createHUD();
     this.createTurnOverlay();
     this.createCantoButton();
@@ -215,6 +216,7 @@ export class Start extends Phaser.Scene {
      this.dirBtn1Rect, this.dirBtn1Text].forEach(o => o?.setVisible(false));
 
     this.mesaDealDirection = direction;
+    this.updateDeckSprite();
 
     // Get mesa cards without rendering them yet
     const { mesa, matches } = this.dealUniqueMesaFour(direction);
@@ -332,7 +334,7 @@ export class Start extends Phaser.Scene {
     const playerPositions = [];
     for (let p = 0; p < this.numPlayers; p++) {
       playerPositions[p] = [];
-      const relPos = p;
+      const relPos = (p - this.currentPlayer + this.numPlayers) % this.numPlayers;
 
       if (relPos === 0) {
         // Bottom row (human / current player)
@@ -546,6 +548,16 @@ export class Start extends Phaser.Scene {
       // Reset canto scoring state for new round
       this.cantoByPlayer = Array(this.numPlayers).fill(null);
       this.cantoAwarded = false;
+
+      // Animate the deal then reveal hands
+      this._animateDealCards(() => {
+        this.renderAll();
+        this.refreshCantoGate();
+        if (this.aiPlayers.has(this.currentPlayer)) {
+          this.time.delayedCall(700, () => this.aiTakeTurn());
+        }
+      });
+      return;
     }
 
     this.renderAll();
@@ -710,6 +722,11 @@ export class Start extends Phaser.Scene {
       `Hand ${this.handNumber} | Turn: P${this.currentPlayer + 1}${teamTag}${dealerStr} | Deck: ${this.deck.length}\n` +
       `Points: ${ptsStr}  (Captured: ${capStr})`
     );
+
+    // Only update visibility here — position is fixed per hand (set in _continueAfterDirection)
+    if (this.deckSprite) {
+      this.deckSprite.setVisible(this.deck && this.deck.length > 0);
+    }
   }
 
   // ---------- MOVE LOG ----------
@@ -1029,6 +1046,47 @@ export class Start extends Phaser.Scene {
       })
       .setOrigin(0.5, 0)
       .setAlpha(0.55);
+  }
+
+  createDeckSprite() {
+    this.deckSprite = this.add.image(
+      this.scale.width * 0.78,
+      this.scale.height * 0.15,
+      "card_back"
+    )
+      .setScale(0.7)
+      .setDepth(50)
+      .setAlpha(0.9);
+  }
+
+  _getDeckPosition() {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const relPos = (this.dealerIndex - this.currentPlayer + this.numPlayers) % this.numPlayers;
+
+    if (relPos === 0) {
+      // Dealer at bottom → lower-left outside oval
+      return { x: W * 0.18, y: H * 0.78 };
+    } else if (relPos === 1 && this.numPlayers === 2) {
+      // Dealer at top (2-player) → upper-right
+      return { x: W * 0.78, y: H * 0.15 };
+    } else if (relPos === 1) {
+      // Dealer at right (3/4-player) → right side
+      return { x: W * 0.88, y: H * 0.68 };
+    } else if (relPos === 2 && this.numPlayers === 4) {
+      // Dealer at top (4-player teammate) → upper-right
+      return { x: W * 0.78, y: H * 0.15 };
+    } else {
+      // Dealer at left (relPos 2 in 3p, relPos 3 in 4p) → left side
+      return { x: W * 0.12, y: H * 0.68 };
+    }
+  }
+
+  updateDeckSprite() {
+    if (!this.deckSprite) return;
+    const { x, y } = this._getDeckPosition();
+    this.deckSprite.setPosition(x, y);
+    this.deckSprite.setVisible(this.deck && this.deck.length > 0);
   }
 
   highlightPlayZone(on) {
@@ -1590,7 +1648,7 @@ export class Start extends Phaser.Scene {
     const cards = this.tableCards;
     if (!cards || cards.length === 0) return;
 
-    const maxPerRow = 6;
+    const maxPerRow = 5;
 
     // Center of table area
     const centerX = this.scale.width * 0.5;
