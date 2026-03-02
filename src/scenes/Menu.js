@@ -119,6 +119,12 @@ export class Menu extends Phaser.Scene {
   startGame(mode) {
     if (mode === "ai") {
       this.scene.start("Start", { numPlayers: 2, aiPlayers: [1] });
+    } else if (mode === 3) {
+      // 1 human (P0) vs 2 AI opponents
+      this.scene.start("Start", { numPlayers: 3, aiPlayers: [1, 2] });
+    } else if (mode === 4) {
+      // 1 human (P0) + AI partner (P2) vs 2 AI opponents (P1, P3)
+      this.scene.start("Start", { numPlayers: 4, aiPlayers: [1, 2, 3] });
     } else {
       this.scene.start("Start", { numPlayers: mode });
     }

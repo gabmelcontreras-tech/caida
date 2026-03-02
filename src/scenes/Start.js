@@ -1512,6 +1512,15 @@ export class Start extends Phaser.Scene {
     if (playable.length > 0) {
       const { card, idx } = playable[0];
       this.handlePlayToTable(this._makeFakeSprite(card, idx));
+      return;
+    }
+
+    // Fallback: every card in hand can lift — just take the best one
+    const fallbackLift = hand
+      .map((c, i) => ({ card: c, idx: i }))
+      .sort((a, b) => b.card.value - a.card.value);
+    if (fallbackLift.length > 0) {
+      this._aiExecuteLift(fallbackLift[0].idx);
     }
   }
 
